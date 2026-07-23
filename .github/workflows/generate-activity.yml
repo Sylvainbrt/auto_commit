@@ -1,0 +1,119 @@
+name: Generate clearly synthetic activity
+
+on:
+  schedule:
+    # Run shortly after midnight and generate timestamps for the completed UTC day.
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "Optional UTC date (YYYY-MM-DD); defaults to yesterday"
+        required: false
+        type: string
+      min_commits:
+        description: "Minimum synthetic commits"
+        required: true
+        default: "0"
+        type: string
+      max_commits:
+        description: "Maximum synthetic commits"
+        required: true
+        default: "10"
+        type: string
+      seed:
+        description: "Optional deterministic integer seed"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: synthetic-activity-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    name: Generate artificial experiment commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure the transparent automation identity
+        # GitHub attributes profile contributions by commit email and qualifying
+        # branch. This bot email intentionally avoids claiming a human's work.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Generate synthetic event metadata
+        id: generate
+        shell: bash
+        env:
+          REQUESTED_DATE: ${{ inputs.target_date }}
+          MIN_COMMITS: ${{ inputs.min_commits || '0' }}
+          MAX_COMMITS: ${{ inputs.max_commits || '10' }}
+          RANDOM_SEED: ${{ inputs.seed }}
+        run: |
+          set -euo pipefail
+          target_args=()
+          seed_args=()
+
+          if [[ -n "$REQUESTED_DATE" ]]; then
+            target_args=(--date "$REQUESTED_DATE")
+          fi
+          if [[ -n "$RANDOM_SEED" ]]; then
+            seed_args=(--seed "$RANDOM_SEED")
+          fi
+
+          summary="$(
+            python scripts/generate_activity.py \
+              "${target_args[@]}" \
+              --min-commits "$MIN_COMMITS" \
+              --max-commits "$MAX_COMMITS" \
+              --output "$RUNNER_TEMP/synthetic-events.jsonl" \
+              "${seed_args[@]}"
+          )"
+          count="$(python -c 'import json, sys; print(json.loads(sys.argv[1])["commit_count"])' "$summary")"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Generator summary: $summary"
+
+      - name: Create dated synthetic commits
+        if: steps.generate.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          event_number=0
+
+          while IFS= read -r event; do
+            [[ -z "$event" ]] && continue
+            event_number=$((event_number + 1))
+            timestamp="$(python -c 'import json, sys; print(json.loads(sys.argv[1])["timestamp"])' "$event")"
+            commit_message="$(python -c 'import json, sys; print(json.loads(sys.argv[1])["commit_message"])' "$event")"
+
+            printf '%s\n' "$event" >> data/activity_log.jsonl
+            git add data/activity_log.jsonl
+            GIT_AUTHOR_DATE="$timestamp" GIT_COMMITTER_DATE="$timestamp" \
+              git commit \
+                -m "$commit_message" \
+                -m "Automated and artificial contribution-graph experiment event ${event_number}."
+          done < "$RUNNER_TEMP/synthetic-events.jsonl"
+
+      - name: Push the synthetic commits once
+        if: steps.generate.outputs.count != '0'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: git push origin "HEAD:${DEFAULT_BRANCH}"
+
+      - name: Report a zero-commit day
+        if: steps.generate.outputs.count == '0'
+        run: echo "The random selection was zero; no synthetic commits were created."
