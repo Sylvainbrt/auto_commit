@@ -5,10 +5,11 @@
 > demonstrate that contribution counts are easy to automate and should not be
 > treated as a meaningful measure of developer quality.**
 
-Every event, data entry, commit message, workflow name, and Git identity in
-this repository is deliberately labeled as automated or synthetic. This is a
-small measurement experiment, not a software product and not real development
-activity.
+Every event, data entry, commit message, workflow name, and this documentation
+deliberately label the activity as automated or synthetic. Commits use the
+repository owner's configured GitHub identity only so GitHub can correctly
+attribute this disclosed experiment; that attribution does not make the events
+real development activity.
 
 ## Why this exists
 
@@ -70,16 +71,23 @@ successful no-op.
 1. Create a **public** GitHub repository with a transparent name such as
    `synthetic-github-activity`. Do not initialize it with generated files.
 2. Add this project, commit it, and push it to the repository's default branch.
-3. In **Settings → Actions → General → Workflow permissions**, select
+3. In **Settings → Secrets and variables → Actions → Variables**, create:
+   - `GH_COMMIT_NAME` = the name or username shown on your GitHub account;
+   - `GH_COMMIT_EMAIL` = the GitHub-provided `noreply` email from your GitHub
+     email settings (or another email already associated with your account).
+   These are configuration variables, not secrets: a Git commit email is
+   stored in the public commit object.
+4. In **Settings → Actions → General → Workflow permissions**, select
    **Read and write permissions**, then save. The workflow also declares the
    narrower `contents: write` permission explicitly.
-4. Open the **Actions** tab and enable workflows if GitHub asks.
-5. Select **Generate clearly synthetic activity** and use **Run workflow** for
+5. Open the **Actions** tab and enable workflows if GitHub asks.
+6. Select **Generate clearly synthetic activity** and use **Run workflow** for
    an immediate manual test, or wait for the daily schedule.
 
-The built-in `GITHUB_TOKEN` is used automatically. No personal access token,
-API key, server, paid service, locally running computer, or second repository
-is needed.
+The built-in `GITHUB_TOKEN` is used automatically to push. The repository
+variables control only the author and committer identity stored inside the
+commit. No personal access token, API key, server, paid service, locally
+running computer, or second repository is needed.
 
 Branch protection or repository rules may reject direct pushes from
 `github-actions[bot]`. For this isolated demonstration, either allow that bot
@@ -138,12 +146,10 @@ commits do not recursively launch `tests.yml`; ordinary pushes and pull
 requests still do. Qualifying contributions can also take time to appear on a
 profile.
 
-This project intentionally uses the clearly identified
-`github-actions[bot]` name and noreply email. It does not impersonate the
-repository owner, so its commits should not be presented as that person's
-work. Changing the email to one associated with a personal account could
-alter attribution, but doing so would undermine the transparency and ethics of
-this demonstration.
+This project intentionally labels every generated event and commit message as
+synthetic. The commit email is configured to an email associated with the
+repository owner so GitHub can attribute the disclosed experiment correctly;
+that attribution must not be presented as the owner's real engineering work.
 
 For private repositories, GitHub users can choose to show anonymized private
 contribution counts from their profile's **Contribution settings → Private

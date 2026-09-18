@@ -36,6 +36,13 @@ jobs:
   generate:
     name: Generate artificial experiment commits
     runs-on: ubuntu-latest
+    # These configure the identity stored in each commit. They do not affect
+    # the GITHUB_TOKEN that actions/checkout uses to authenticate the push.
+    env:
+      GIT_AUTHOR_NAME: ${{ vars.GH_COMMIT_NAME }}
+      GIT_AUTHOR_EMAIL: ${{ vars.GH_COMMIT_EMAIL }}
+      GIT_COMMITTER_NAME: ${{ vars.GH_COMMIT_NAME }}
+      GIT_COMMITTER_EMAIL: ${{ vars.GH_COMMIT_EMAIL }}
     steps:
       - name: Check out the default branch
         uses: actions/checkout@v4
@@ -48,12 +55,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Configure the transparent automation identity
-        # GitHub attributes profile contributions by commit email and qualifying
-        # branch. This bot email intentionally avoids claiming a human's work.
+      - name: Configure the transparent synthetic commit identity
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          set -euo pipefail
+          if [[ -z "$GIT_AUTHOR_NAME" || -z "$GIT_AUTHOR_EMAIL" || -z "$GIT_COMMITTER_NAME" || -z "$GIT_COMMITTER_EMAIL" ]]; then
+            echo "::error title=Missing commit identity::Set the GH_COMMIT_NAME and GH_COMMIT_EMAIL repository variables before running this workflow."
+            exit 1
+          fi
+          git config user.name "$GIT_AUTHOR_NAME"
+          git config user.email "$GIT_AUTHOR_EMAIL"
 
       - name: Generate synthetic event metadata
         id: generate
